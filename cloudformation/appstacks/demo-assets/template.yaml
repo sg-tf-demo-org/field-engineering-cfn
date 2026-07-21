@@ -1,46 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Brownfield — demo-assets private S3 (migrated from cloudformation/demo)
-
-Parameters:
-  Environment:
-    Type: String
-    AllowedValues: [dev, stage, uat, prod]
-  Owner:
-    Type: String
-    Default: platform
-  CostCenter:
-    Type: String
-    Default: FE-DEMO
+Description: Direct GitLab PR bypass — weak S3 for step-3 governance scan (expect FAIL) [1784637387]
 
 Resources:
-  DemoAssetsBucket:
+  BypassPublicBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
+      BucketName: !Sub aiden-bypass-public-${AWS::AccountId}
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: BucketOwnerEnforced
-
-      Tags:
-        - Key: Owner
-          Value: !Ref Owner
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: ManagedBy
-          Value: aiden
-        - Key: CostCenter
-          Value: !Ref CostCenter
-        - Key: AppStack
-          Value: demo-assets
-
-Outputs:
-  BucketName:
-    Value: !Ref DemoAssetsBucket
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
