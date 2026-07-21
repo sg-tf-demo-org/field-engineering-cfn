@@ -96,3 +96,25 @@ notify_aiden_deploy:
       curl -sS -f -X POST "${AIDEN_DEPLOY_WEBHOOK_URL}" "${HDRS[@]}" -d "${PAYLOAD}"
       echo
       echo "Aiden webhook accepted"
+
+# Aiden bypass path: notify Guild to scan this MR (human-raised or any MR).
+notify_aiden_mr_governance:
+  stage: notify
+  image: public.ecr.aws/docker/library/alpine:3.20
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - apk add --no-cache curl jq git >/dev/null
+  script:
+    - |
+      set -euo pipefail
+      if [[ -z "${AIDEN_MR_GOVERNANCE_WEBHOOK_URL:-}" ]]; then
+        echo "WARN: AIDEN_MR_GOVERNANCE_WEBHOOK_URL unset — skip Aiden notify"
+        exit 0
+      fi
+      CHANGED=$(git diff --name-only "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}}...HEAD" 2>/dev/null | head -80 | jq -R -s -c 'split("\n")|map(select(length>0))' || echo '[]')
+      PAYLOAD=$(jq -n         --arg project "${CI_PROJECT_PATH}"         --arg mr_iid "${CI_MERGE_REQUEST_IID}"         --arg mr_url "${CI_PROJECT_URL}/-/merge_requests/${CI_MERGE_REQUEST_IID}"         --arg source_branch "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"         --arg target_branch "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"         --arg sha "${CI_COMMIT_SHA}"         --arg pipeline "${CI_PIPELINE_URL}"         --argjson changed "$CHANGED"         '{source:"gitlab-ci",event:"mr_governance_scan",project:$project,mr_iid:$mr_iid,mr_url:$mr_url,source_branch:$source_branch,target_branch:$target_branch,sha:$sha,pipeline_url:$pipeline,changed_files:$changed,instruction:"Bypass/human MR — scan governance, notify PASS/FAIL, do not deploy."}')
+      curl -sS -f -X POST "$AIDEN_MR_GOVERNANCE_WEBHOOK_URL"         -H "Content-Type: application/json"         -d "$PAYLOAD" | head -c 500 || true
+      echo
+      echo "OK: notified Aiden MR governance webhook"
+  allow_failure: true
