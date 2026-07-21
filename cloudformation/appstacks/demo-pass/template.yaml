@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: DEMO PASS — compliant appstack (CMK S3, tags, us-east-1).
+
+Resources:
+  AssetsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: demo-pass CMK
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Root
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - { Key: Owner, Value: platform }
+        - { Key: CostCenter, Value: FE-DEMO }
+        - { Key: Environment, Value: dev }
+
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt AssetsKey.Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - { Key: Owner, Value: platform }
+        - { Key: CostCenter, Value: FE-DEMO }
+        - { Key: Environment, Value: dev }
+
+Outputs:
+  BucketName:
+    Value: !Ref AssetsBucket
