@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Brownfield — shipping (SNS + SQS + IAM)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, stage, uat, prod]
+  Owner:
+    Type: String
+    Default: platform
+  CostCenter:
+    Type: String
+    Default: FE-DEMO
+
+Resources:
+  ShippingTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub aiden-shipping-events-${Environment}
+      KmsMasterKeyId: alias/aws/sns
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: shipping
+
+  ShippingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub aiden-shipping-work-${Environment}
+      KmsMasterKeyId: alias/aws/sqs
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: shipping
+
+  QueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref ShippingQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt ShippingQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref ShippingTopic
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref ShippingTopic
+      Protocol: sqs
+      Endpoint: !GetAtt ShippingQueue.Arn
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub aiden-shipping-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ecs-tasks.amazonaws.com, ec2.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ShippingAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [sns:Publish]
+                Resource: !Ref ShippingTopic
+              - Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
+                Resource: !GetAtt ShippingQueue.Arn
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: shipping
+
+Outputs:
+  TopicArn:
+    Value: !Ref ShippingTopic
+  QueueUrl:
+    Value: !Ref ShippingQueue

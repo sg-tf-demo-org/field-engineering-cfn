@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Brownfield — product-catalog (S3 + DynamoDB + IAM)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, stage, uat, prod]
+  Owner:
+    Type: String
+    Default: platform
+  CostCenter:
+    Type: String
+    Default: FE-DEMO
+
+Resources:
+  CatalogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: product-catalog
+
+  CatalogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub aiden-product-catalog-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: productId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: product-catalog
+
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub aiden-product-catalog-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ecs-tasks.amazonaws.com, ec2.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CatalogAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:ListBucket]
+                Resource:
+                  - !GetAtt CatalogBucket.Arn
+                  - !Sub ${CatalogBucket.Arn}/*
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:Scan]
+                Resource: !GetAtt CatalogTable.Arn
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: product-catalog
+
+Outputs:
+  BucketName:
+    Value: !Ref CatalogBucket
+  TableName:
+    Value: !Ref CatalogTable

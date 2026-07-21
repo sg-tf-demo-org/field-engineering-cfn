@@ -1,0 +1,7 @@
+{
+  "Parameters": {
+    "Environment": "stage",
+    "Owner": "platform",
+    "CostCenter": "FE-DEMO"
+  }
+}
