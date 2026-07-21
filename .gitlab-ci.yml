@@ -1,0 +1,24 @@
+stages:
+  - validate
+
+cfn-validate:
+  stage: validate
+  image: public.ecr.aws/docker/library/python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - cloudformation/**/*
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cloudformation/**/*
+  before_script:
+    - pip install --quiet cfn-lint
+  script:
+    - |
+      set -euo pipefail
+      mapfile -t files < <(find cloudformation -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) 2>/dev/null || true)
+      if [[ ${#files[@]} -eq 0 ]]; then
+        echo "No CloudFormation templates under cloudformation/ — skip"
+        exit 0
+      fi
+      cfn-lint "${files[@]}"
