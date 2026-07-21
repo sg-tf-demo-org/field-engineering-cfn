@@ -1,46 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Brownfield — demo-assets private S3 (migrated from cloudformation/demo)
-
-Parameters:
-  Environment:
-    Type: String
-    AllowedValues: [dev, stage, uat, prod]
-  Owner:
-    Type: String
-    Default: platform
-  CostCenter:
-    Type: String
-    Default: FE-DEMO
-
+Description: bypass six-step step-3 demo
 Resources:
-  DemoAssetsBucket:
+  BadBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: BucketOwnerEnforced
-
-      Tags:
-        - Key: Owner
-          Value: !Ref Owner
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: ManagedBy
-          Value: aiden
-        - Key: CostCenter
-          Value: !Ref CostCenter
-        - Key: AppStack
-          Value: demo-assets
-
-Outputs:
-  BucketName:
-    Value: !Ref DemoAssetsBucket
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
