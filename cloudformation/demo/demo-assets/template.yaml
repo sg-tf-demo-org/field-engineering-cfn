@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private S3 bucket in us-east-1 for demo assets
+
+Resources:
+  DemoAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: Environment
+          Value: dev
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: ManagedBy
+          Value: aiden
+
+Outputs:
+  BucketName:
+    Description: Name of the demo assets bucket
+    Value: !Ref DemoAssetsBucket
