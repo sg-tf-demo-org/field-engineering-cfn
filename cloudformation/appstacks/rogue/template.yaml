@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Rogue appstack pushed directly to GitLab (bypasses Aiden governance).
+Resources:
+  # CSPM violation: public + unencrypted bucket, no public-access block.
+  PublicAssets:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+  # Region violation: hardcoded disallowed region.
+  LegacyQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: legacy-us-west-2-queue
+Outputs:
+  LegacyArn:
+    Value: arn:aws:sqs:us-west-2:123456789012:legacy
