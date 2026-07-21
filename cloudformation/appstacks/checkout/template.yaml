@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Brownfield — checkout order queue (no DLQ yet; demo gap for Aiden PASS intent)
+Description: Brownfield — checkout order queue with DLQ
 
 Parameters:
   Environment:
@@ -13,11 +13,32 @@ Parameters:
     Default: FE-DEMO
 
 Resources:
+  OrderDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub aiden-checkout-orders-dlq-${Environment}
+      KmsMasterKeyId: alias/aws/sqs
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: checkout
+
   OrderQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub aiden-checkout-orders-${Environment}
       KmsMasterKeyId: alias/aws/sqs
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderDLQ.Arn
+        maxReceiveCount: 3
       Tags:
         - Key: Owner
           Value: !Ref Owner
@@ -73,7 +94,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
-                Resource: !GetAtt OrderQueue.Arn
+                Resource:
+                  - !GetAtt OrderQueue.Arn
+                  - !GetAtt OrderDLQ.Arn
               - Effect: Allow
                 Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:Query]
                 Resource: !GetAtt OrdersTable.Arn
@@ -94,3 +117,7 @@ Outputs:
     Value: !Ref OrderQueue
   OrdersTableName:
     Value: !Ref OrdersTable
+  OrderDLQArn:
+    Value: !GetAtt OrderDLQ.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-OrderDLQArn"
