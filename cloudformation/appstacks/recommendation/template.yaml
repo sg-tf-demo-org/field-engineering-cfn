@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Brownfield — recommendation data plane (DynamoDB + IAM)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, stage, uat, prod]
+  Owner:
+    Type: String
+    Default: platform
+  CostCenter:
+    Type: String
+    Default: FE-DEMO
+
+Resources:
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub aiden-recommendation-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: recommendation
+
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub aiden-recommendation-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ecs-tasks.amazonaws.com, ec2.amazonaws.com]
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TableAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !GetAtt DataTable.Arn
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: recommendation
+
+Outputs:
+  TableName:
+    Value: !Ref DataTable
+  RoleArn:
+    Value: !GetAtt ServiceRole.Arn

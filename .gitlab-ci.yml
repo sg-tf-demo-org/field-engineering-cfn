@@ -1,24 +1,98 @@
 stages:
   - validate
+  - evidence
+  - notify
 
-cfn-validate:
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+.cfn_changes: &cfn_changes
+  changes:
+    - cloudformation/appstacks/**/*
+
+cfn-lint:
   stage: validate
   image: public.ecr.aws/docker/library/python:3.12-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - cloudformation/**/*
+      <<: *cfn_changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - cloudformation/**/*
+      <<: *cfn_changes
   before_script:
     - pip install --quiet cfn-lint
   script:
     - |
       set -euo pipefail
-      mapfile -t files < <(find cloudformation -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) 2>/dev/null || true)
+      mapfile -t files < <(find cloudformation/appstacks -type f -name 'template.yaml' | sort)
       if [[ ${#files[@]} -eq 0 ]]; then
-        echo "No CloudFormation templates under cloudformation/ — skip"
-        exit 0
+        echo "No appstack templates found"
+        exit 1
       fi
+      echo "Linting ${#files[@]} templates"
       cfn-lint "${files[@]}"
+
+governance_evidence:
+  stage: evidence
+  image: public.ecr.aws/docker/library/alpine:3.20
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      set -euo pipefail
+      : "${CI_API_V4_URL:?}"
+      : "${CI_PROJECT_ID:?}"
+      : "${CI_MERGE_REQUEST_IID:?}"
+      : "${CI_JOB_TOKEN:?}"
+      DESC=$(curl -sS --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}" \
+        | jq -r '.description // ""')
+      echo "$DESC" | grep -q '## Governance' || {
+        echo "FAIL: MR description must include a '## Governance' section (gates before PR)."
+        exit 1
+      }
+      echo "OK: governance evidence section present"
+
+# Manual gate: human runs this after MR merge/approval. Posts to Aiden webhook automation.
+notify_aiden_deploy:
+  stage: notify
+  image: public.ecr.aws/docker/library/alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: false
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      set -euo pipefail
+      if [[ -z "${AIDEN_DEPLOY_WEBHOOK_URL:-}" ]]; then
+        echo "Set CI/CD variable AIDEN_DEPLOY_WEBHOOK_URL to the Aiden Automations webhook URL."
+        exit 1
+      fi
+      ENV_NAME="${DEPLOY_ENV:-prod}"
+      PAYLOAD=$(jq -n \
+        --arg project "${CI_PROJECT_PATH}" \
+        --arg sha "${CI_COMMIT_SHA}" \
+        --arg ref "${CI_COMMIT_REF_NAME}" \
+        --arg env "${ENV_NAME}" \
+        --arg pipeline "${CI_PIPELINE_URL}" \
+        '{
+          source: "gitlab-ci",
+          event: "notify_aiden_deploy",
+          project: $project,
+          commit_sha: $sha,
+          ref: $ref,
+          environment: $env,
+          pipeline_url: $pipeline,
+          instruction: "Deploy changed cloudformation/appstacks/*/template.yaml for environment using mcp-cfn-deploy. Require ## Governance evidence from the associated MR. Stack name aiden-<app>-<env>. Never deploy without governance evidence."
+        }')
+      echo "Notifying Aiden deploy automation (env=${ENV_NAME})"
+      HDRS=(-H "Content-Type: application/json")
+      if [[ -n "${AIDEN_DEPLOY_WEBHOOK_TOKEN:-}" ]]; then
+        HDRS+=(-H "Authorization: Bearer ${AIDEN_DEPLOY_WEBHOOK_TOKEN}")
+      fi
+      curl -sS -f -X POST "${AIDEN_DEPLOY_WEBHOOK_URL}" "${HDRS[@]}" -d "${PAYLOAD}"
+      echo
+      echo "Aiden webhook accepted"
