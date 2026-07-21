@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Brownfield — checkout (SQS + DLQ + DynamoDB + IAM)
+Description: Brownfield — checkout (SQS + DLQ + DynamoDB + IAM); DLQ redrive maxReceiveCount=5
 
 Parameters:
   Environment:
@@ -38,7 +38,7 @@ Resources:
       KmsMasterKeyId: alias/aws/sqs
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt OrderDLQ.Arn
-        maxReceiveCount: 3
+        maxReceiveCount: 5
 
       Tags:
         - Key: Owner
