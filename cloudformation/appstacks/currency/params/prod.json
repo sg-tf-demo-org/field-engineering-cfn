@@ -1,0 +1,7 @@
+{
+  "Parameters": {
+    "Environment": "prod",
+    "Owner": "platform",
+    "CostCenter": "FE-DEMO"
+  }
+}
