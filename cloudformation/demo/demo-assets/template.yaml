@@ -1,0 +1,24 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Aiden smoke — private encrypted S3 for demo assets
+Resources:
+  DemoAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: Environment
+          Value: dev
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: FE-DEMO
