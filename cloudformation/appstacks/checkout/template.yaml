@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Brownfield — checkout (SQS + DLQ + DynamoDB + IAM); DLQ redrive maxReceiveCount=5
+Description: Brownfield — checkout order queue (no DLQ yet; demo gap for Aiden PASS intent)
 
 Parameters:
   Environment:
@@ -13,33 +13,11 @@ Parameters:
     Default: FE-DEMO
 
 Resources:
-  OrderDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub aiden-checkout-dlq-${Environment}
-      KmsMasterKeyId: alias/aws/sqs
-
-      Tags:
-        - Key: Owner
-          Value: !Ref Owner
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: ManagedBy
-          Value: aiden
-        - Key: CostCenter
-          Value: !Ref CostCenter
-        - Key: AppStack
-          Value: checkout
-
   OrderQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub aiden-checkout-orders-${Environment}
       KmsMasterKeyId: alias/aws/sqs
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt OrderDLQ.Arn
-        maxReceiveCount: 5
-
       Tags:
         - Key: Owner
           Value: !Ref Owner
@@ -65,7 +43,6 @@ Resources:
           KeyType: HASH
       SSESpecification:
         SSEEnabled: true
-
       Tags:
         - Key: Owner
           Value: !Ref Owner
@@ -96,11 +73,10 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
-                Resource: [!GetAtt OrderQueue.Arn, !GetAtt OrderDLQ.Arn]
+                Resource: !GetAtt OrderQueue.Arn
               - Effect: Allow
                 Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:Query]
                 Resource: !GetAtt OrdersTable.Arn
-
       Tags:
         - Key: Owner
           Value: !Ref Owner
@@ -116,7 +92,5 @@ Resources:
 Outputs:
   OrderQueueUrl:
     Value: !Ref OrderQueue
-  OrderDLQUrl:
-    Value: !Ref OrderDLQ
   OrdersTableName:
     Value: !Ref OrdersTable
