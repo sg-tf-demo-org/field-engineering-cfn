@@ -1,0 +1,7 @@
+{
+  "Parameters": {
+    "Environment": "uat",
+    "Owner": "platform",
+    "CostCenter": "FE-DEMO"
+  }
+}

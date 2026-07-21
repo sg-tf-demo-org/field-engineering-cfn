@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Brownfield — payment (Secrets Manager + IAM + Lambda placeholder)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, stage, uat, prod]
+  Owner:
+    Type: String
+    Default: platform
+  CostCenter:
+    Type: String
+    Default: FE-DEMO
+
+Resources:
+  PaymentSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub aiden/payment/${Environment}/api-key
+      Description: Placeholder payment provider API key
+      SecretString: !Sub '{"provider":"demo","env":"${Environment}","apiKey":"REPLACE_ME"}'
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: payment
+
+  PaymentFnRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub aiden-payment-lambda-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadPaymentSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [secretsmanager:GetSecretValue]
+                Resource: !Ref PaymentSecret
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: payment
+
+  PaymentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub aiden-payment-${Environment}
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt PaymentFnRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          SECRET_ARN: !Ref PaymentSecret
+          ENVIRONMENT: !Ref Environment
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"ok": True, "service": "payment"}
+
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: AppStack
+          Value: payment
+
+Outputs:
+  SecretArn:
+    Value: !Ref PaymentSecret
+  FunctionName:
+    Value: !Ref PaymentFunction
