@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Aiden for Infra — private encrypted S3 for demo assets (outcome-driven).
+  Governance_Configuration applied before MR: us-east-1, required tags, no public access.
+
+Resources:
+  DemoAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: Environment
+          Value: dev
+        - Key: ManagedBy
+          Value: aiden
+        - Key: CostCenter
+          Value: FE-DEMO
+
+Outputs:
+  BucketName:
+    Description: Physical name of the demo assets bucket
+    Value: !Ref DemoAssetsBucket
+  BucketArn:
+    Description: ARN of the demo assets bucket
+    Value: !GetAtt DemoAssetsBucket.Arn
