@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Customer-managed KMS key for encryption at rest - Region us-east-1
+
+Resources:
+
+  DemoKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Customer-managed KMS key (CMK) for demo workloads
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableRootAccountFullControl
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+
+  DemoKMSAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/demo-kms-key
+      TargetKeyId: !Ref DemoKMSKey
+
+Outputs:
+  KeyId:
+    Description: The KMS Key ID
+    Value: !Ref DemoKMSKey
+    Export:
+      Name: !Sub '${AWS::StackName}-KeyId'
+
+  KeyArn:
+    Description: The KMS Key ARN
+    Value: !GetAtt DemoKMSKey.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-KeyArn'
