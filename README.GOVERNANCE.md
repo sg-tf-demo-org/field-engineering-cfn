@@ -8,3 +8,5 @@ Migrated from GitLab. Human-first PR loop:
 4. Approve/merge when PASS; progressive deploy is separate
 
 GitLab CI is disabled (`.gitlab-ci.yml.disabled`).
+
+<!-- governance gate smoke 20260722T132111Z -->
