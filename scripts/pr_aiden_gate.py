@@ -107,6 +107,31 @@ def post_commit_status(state: str, description: str, target_url: str = "") -> No
         summary(f"- commit status error: `{e}`")
 
 
+def post_pr_comment(body_md: str) -> None:
+    """Post (or skip) a PR comment with the Aiden watch link."""
+    if not GH_TOKEN or not REPO or not PR_NUMBER:
+        return
+    url = f"https://api.github.com/repos/{REPO}/issues/{PR_NUMBER}/comments"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps({"body": body_md}).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {GH_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            summary(f"- PR comment with Aiden watch link (HTTP {resp.status})")
+    except urllib.error.HTTPError as e:
+        summary(f"- PR comment HTTP {e.code}: {e.read().decode()[:200]}")
+    except Exception as e:  # noqa: BLE001
+        summary(f"- PR comment error: `{e}`")
+
+
 def fire_pr_webhook() -> tuple[str, str]:
     if not WEBHOOK_URL:
         summary("- Aiden reporter: `AIDEN_PR_GOVERNANCE_WEBHOOK_URL` unset — no watch run.")
@@ -135,19 +160,26 @@ def fire_pr_webhook() -> tuple[str, str]:
         method="POST",
         headers={"Content-Type": "application/json"},
     )
+    body = ""
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             code = resp.status
-            resp.read()
+            body = resp.read().decode()
     except urllib.error.HTTPError as e:
         code = e.code
-        e.read()
+        body = e.read().decode()
     except Exception as e:  # noqa: BLE001
         summary(f"- Aiden reporter: webhook error (non-fatal): `{e}`")
         return "", ""
 
     summary(f"- Aiden reporter: webhook HTTP `{code}`")
+    if code >= 400:
+        # e.g. 423 TARGET_NOT_FOUND when webhook agent is missing — no session to link
+        summary(f"- Aiden reporter: webhook body `{body[:400]}` — skipping watch resolve")
+        return "", ""
     if not RUN_URL or not GUILD_TOKEN:
+        if not GUILD_TOKEN:
+            summary("- Aiden reporter: `AIDEN_GUILD_TOKEN` unset — cannot resolve session watch URL")
         return "", ""
     summary("- Resolving Aiden watch URL (correlate on run_url)...")
     ex = resolve_execution(RUN_URL, timeout_s=WATCH_RESOLVE_TIMEOUT)
@@ -266,6 +298,14 @@ def main() -> int:
             "Aiden governance scan running — open to watch",
             target_url=link,
         )
+        post_pr_comment(
+            f"### Aiden PR governance ({KIND})\n\n"
+            f"[Open latest Aiden execution (watch)]({link})\n\n"
+            f"_Commit `{COMMIT_SHA[:7]}` · ref `{REF}` · check context `{STATUS_CONTEXT}` "
+            f"(Details on the status also links here)._"
+        )
+    else:
+        summary("- Aiden watch: _(unresolved — webhook failed or session not listed yet)_")
 
     summary("- Verdict source: `mcp-cdk-governance.validate_cdk_governance`.")
     t0 = time.time()
