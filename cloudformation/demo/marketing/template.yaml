@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Marketing demo artifact showing requested public eu-west-1 S3 bucket is policy-blocked by governance.
+Parameters:
+  GovernanceConflictReason:
+    Type: String
+    Default: "Requested public S3 bucket in eu-west-1 conflicts with governance requiring us-east-1 and private encrypted S3 with Block Public Access."
+Resources: {}
+Outputs:
+  RequestedOutcome:
+    Description: Original requested outcome.
+    Value: "Public S3 bucket in eu-west-1 for marketing"
+  GovernanceStatus:
+    Description: Governing policy result.
+    Value: "Blocked by governance: region and public access conflict"
+  ConflictReason:
+    Description: Explanation of the blocking governance rules.
+    Value: !Ref GovernanceConflictReason
