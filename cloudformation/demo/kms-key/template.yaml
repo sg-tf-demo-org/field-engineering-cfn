@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  KMS Customer-Managed Key (CMK) with key rotation enabled for platform use.
+  Region: us-east-1
+
+Resources:
+  PlatformCMK:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Platform Customer-Managed Key with annual rotation
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowRootAccountFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+
+  PlatformCMKAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/platform-cmk
+      TargetKeyId: !Ref PlatformCMK
+
+Outputs:
+  KeyId:
+    Description: KMS CMK Key ID
+    Value: !Ref PlatformCMK
+    Export:
+      Name: !Sub "${AWS::StackName}-KeyId"
+
+  KeyArn:
+    Description: KMS CMK Key ARN
+    Value: !GetAtt PlatformCMK.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-KeyArn"
+
+  KeyAlias:
+    Description: KMS CMK Alias Name
+    Value: !Ref PlatformCMKAlias
+    Export:
+      Name: !Sub "${AWS::StackName}-KeyAlias"
