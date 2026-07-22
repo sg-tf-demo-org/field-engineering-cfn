@@ -1,0 +1,66 @@
+name: pr-governance-scan
+
+# ============================================================================
+# Human-first PR loop for CloudFormation: every PR head SHA is scanned.
+# pending → webhook watch → mcp-cdk-governance.validate_cdk_governance →
+# success|failure|error + Details → session:{id} watch URL.
+# ============================================================================
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  aiden-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compute changed files
+        run: |
+          set +e
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ] && git cat-file -e "$BASE_SHA" 2>/dev/null; then
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" | head -100 \
+              | jq -R -s -c 'split("\n")|map(select(length>0))' > changed-files.json
+          else
+            echo '[]' > changed-files.json
+          fi
+
+      - name: Aiden PR governance (MCP verdict + watch link)
+        env:
+          GATE_KIND: cfn
+          GATE_PROJECT: ${{ github.repository }}
+          GATE_REPO: ${{ github.repository }}
+          GATE_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          GATE_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+          GATE_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GATE_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GATE_PR_URL: ${{ github.event.pull_request.html_url }}
+          GATE_SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          GATE_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+          GATE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AIDEN_PR_GOVERNANCE_WEBHOOK_URL: ${{ secrets.AIDEN_PR_GOVERNANCE_WEBHOOK_URL }}
+          AIDEN_CDK_GOV_MCP_URL: ${{ secrets.AIDEN_CDK_GOV_MCP_URL }}
+          AIDEN_CDK_GOV_MCP_TOKEN: ${{ secrets.AIDEN_CDK_GOV_MCP_TOKEN }}
+          AIDEN_GUILD_TOKEN: ${{ secrets.AIDEN_GUILD_TOKEN }}
+          AIDEN_ORG_ID: ${{ secrets.AIDEN_ORG_ID }}
+          AIDEN_GUILD_BASE: https://stage.dev.stackgen.com
+          AIDEN_WATCH_RESOLVE_TIMEOUT: "90"
+          GH_TOKEN: ${{ github.token }}
+          GATE_MCP_TIMEOUT: "900"
+        run: |
+          set -euo pipefail
+          export GATE_CHANGED_FILES="$(cat changed-files.json 2>/dev/null || echo '[]')"
+          python3 scripts/pr_aiden_gate.py
