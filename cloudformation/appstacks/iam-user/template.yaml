@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  IAM User appstack for field-engineering platform workloads.
+  NOTE: AWS::IAM::AccessKey was requested but is PROHIBITED by org governance
+  (IAM Least Privilege & No Static Keys policy). Use IAM Identity Center,
+  AssumeRole, or OIDC workload identity for short-lived credentials instead
+  of long-lived static keys.
+
+Parameters:
+  UserName:
+    Type: String
+    Default: fe-platform-user
+    Description: IAM username for the platform workload user
+  InitialPassword:
+    Type: String
+    NoEcho: true
+    Description: Initial password for IAM user (must be changed on first login)
+
+Resources:
+
+  PlatformUserGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: fe-platform-users
+
+  PlatformUserPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: fe-platform-user-policy
+      Description: Least-privilege policy for fe-platform-user (no star-star permissions)
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowS3ReadAccess
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub 'arn:aws:s3:::fe-platform-${AWS::AccountId}-${AWS::Region}'
+              - !Sub 'arn:aws:s3:::fe-platform-${AWS::AccountId}-${AWS::Region}/*'
+          - Sid: AllowSSMParameterRead
+            Effect: Allow
+            Action:
+              - ssm:GetParameter
+              - ssm:GetParameters
+            Resource:
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/fe-platform/*'
+
+  PlatformUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Ref UserName
+      Groups:
+        - !Ref PlatformUserGroup
+      LoginProfile:
+        Password: !Ref InitialPassword
+        PasswordResetRequired: true
+      ManagedPolicyArns:
+        - !Ref PlatformUserPolicy
+      Tags:
+        - Key: team
+          Value: platform
+        - Key: project
+          Value: FE-DEMO
+        - Key: env
+          Value: dev
+
+Outputs:
+  PlatformUserArn:
+    Description: ARN of the provisioned IAM User
+    Value: !GetAtt PlatformUser.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-PlatformUserArn"
+  PlatformUserGroupArn:
+    Description: ARN of the IAM Group
+    Value: !GetAtt PlatformUserGroup.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-PlatformUserGroupArn"
+  GovernanceNote:
+    Description: Governance compliance note
+    Value: >
+      AccessKey PROHIBITED by org policy. Use IAM Identity Center, AssumeRole,
+      or OIDC workload identity for short-lived credentials.
