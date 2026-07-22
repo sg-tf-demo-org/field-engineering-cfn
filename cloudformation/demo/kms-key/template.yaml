@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Customer-managed KMS key for general-purpose SSE-KMS encryption.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+  Owner:
+    Type: String
+    Default: platform
+  CostCenter:
+    Type: String
+    Default: FE-DEMO
+
+Resources:
+  CMK:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Customer-managed KMS key for SSE-KMS encryption (aws:kms)
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountRootFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: Environment
+          Value: !Ref Environment
+
+  CMKAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${Environment}-platform-cmk"
+      TargetKeyId: !Ref CMK
+
+Outputs:
+  KeyArn:
+    Description: ARN of the customer-managed KMS key
+    Value: !GetAtt CMK.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-KeyArn"
+  KeyId:
+    Description: ID of the customer-managed KMS key
+    Value: !Ref CMK
+    Export:
+      Name: !Sub "${AWS::StackName}-KeyId"
