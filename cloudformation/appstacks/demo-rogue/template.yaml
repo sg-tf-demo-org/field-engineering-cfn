@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Rogue appstack — public S3, open SSH, AccessKey, us-west-2.
+
+Resources:
+  PublicAssets:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      # no BucketEncryption, no PublicAccessBlock, no Tags
+
+  OpenSshSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: break-glass ssh from world
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  BatchUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: demo-static-user
+
+  BatchAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref BatchUser
+
+Outputs:
+  LegacyArn:
+    Value: arn:aws:sqs:us-west-2:123456789012:legacy
