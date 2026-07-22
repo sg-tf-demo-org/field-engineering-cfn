@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'KMS CMK + S3 bucket encrypted with CMK - us-east-1'
+
+Resources:
+  PlatformKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'Platform CMK for S3 encryption'
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowRootAccountFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: AllowS3ServiceAccess
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - 'kms:GenerateDataKey'
+              - 'kms:Decrypt'
+            Resource: '*'
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+
+  PlatformKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/platform-cmk
+      TargetKeyId: !Ref PlatformKMSKey
+
+  # Logging destination bucket - fully hardened
+  SecurePlatformBucketLogs:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref PlatformKMSKey
+            BucketKeyEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: GOVERNANCE
+            Days: 1
+      LoggingConfiguration:
+        DestinationBucketName: !Sub "${AWS::StackName}-access-logs-${AWS::AccountId}"
+        LogFilePrefix: logs-bucket-access-logs/
+      ReplicationConfiguration:
+        Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/S3ReplicationRole"
+        Rules:
+          - Id: ReplicateLogsAll
+            Status: Enabled
+            Destination:
+              Bucket: !Sub "arn:aws:s3:::${AWS::StackName}-logs-replica-${AWS::AccountId}"
+              StorageClass: STANDARD
+            Filter:
+              Prefix: ''
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+
+  SecurePlatformBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref PlatformKMSKey
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: GOVERNANCE
+            Days: 1
+      LoggingConfiguration:
+        DestinationBucketName: !Ref SecurePlatformBucketLogs
+        LogFilePrefix: access-logs/
+      ReplicationConfiguration:
+        Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/S3ReplicationRole"
+        Rules:
+          - Id: ReplicateAll
+            Status: Enabled
+            Destination:
+              Bucket: !Sub "arn:aws:s3:::${AWS::StackName}-replica-${AWS::AccountId}"
+              StorageClass: STANDARD
+            Filter:
+              Prefix: ''
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+
+Outputs:
+  KMSKeyId:
+    Description: KMS CMK Key ID
+    Value: !Ref PlatformKMSKey
+  KMSKeyArn:
+    Description: KMS CMK Key ARN
+    Value: !GetAtt PlatformKMSKey.Arn
+  S3BucketName:
+    Description: Secure S3 Bucket Name
+    Value: !Ref SecurePlatformBucket
