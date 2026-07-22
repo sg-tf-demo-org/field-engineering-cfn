@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CMK KMS Key for fe-demo-pass (us-east-1)
+
+Resources:
+
+  FeDemoPassKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Customer-managed KMS key for fe-demo-pass
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableRootAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Owner
+          Value: platform
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+
+  FeDemoPassKMSAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/fe-demo-pass-key
+      TargetKeyId: !Ref FeDemoPassKMSKey
+
+Outputs:
+  KMSKeyId:
+    Value: !Ref FeDemoPassKMSKey
+    Description: KMS Key ID for fe-demo-pass
+
+  KMSKeyArn:
+    Value: !GetAtt FeDemoPassKMSKey.Arn
+    Description: KMS Key ARN for fe-demo-pass
