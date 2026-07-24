@@ -4,10 +4,6 @@ Description: >
   Region: us-east-1 only.
 
 Parameters:
-  Environment:
-    Type: String
-    Default: production
-    AllowedValues: [development, staging, production]
   Owner:
     Type: String
     Default: aiden-team
@@ -37,7 +33,7 @@ Resources:
         - Key: CostCenter
           Value: !Ref CostCenter
         - Key: Environment
-          Value: !Ref Environment
+          Value: prod
 
   AidenKMSKeyAlias:
     Type: AWS::KMS::Alias
@@ -67,7 +63,7 @@ Resources:
         - Key: CostCenter
           Value: !Ref CostCenter
         - Key: Environment
-          Value: !Ref Environment
+          Value: prod
 
 Outputs:
   KMSKeyArn:
