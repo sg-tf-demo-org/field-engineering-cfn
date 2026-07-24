@@ -24,6 +24,12 @@ Resources:
           Value: FE-DEMO
         - Key: env
           Value: dev
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: platform
 
   ClownDemoKeyAlias:
     Type: AWS::KMS::Alias
@@ -54,3 +60,9 @@ Resources:
           Value: FE-DEMO
         - Key: env
           Value: dev
+        - Key: CostCenter
+          Value: FE-DEMO
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: platform
