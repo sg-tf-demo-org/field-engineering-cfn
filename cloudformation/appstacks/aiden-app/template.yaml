@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Aiden App Stack — KMS CMK + encrypted S3 bucket with full public-access block.
+  Region: us-east-1 only.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [development, staging, production]
+  Owner:
+    Type: String
+    Default: aiden-team
+  CostCenter:
+    Type: String
+    Default: CC-1234
+
+Resources:
+
+  AidenKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: CMK for Aiden app S3 bucket encryption
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowRootAccountFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: Environment
+          Value: !Ref Environment
+
+  AidenKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/aiden-app-key
+      TargetKeyId: !Ref AidenKMSKey
+
+  AidenS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt AidenKMSKey.Arn
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  KMSKeyArn:
+    Description: ARN of the Aiden App KMS Key
+    Value: !GetAtt AidenKMSKey.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-KMSKeyArn'
+
+  S3BucketName:
+    Description: Name of the Aiden App S3 Bucket
+    Value: !Ref AidenS3Bucket
+    Export:
+      Name: !Sub '${AWS::StackName}-S3BucketName'
