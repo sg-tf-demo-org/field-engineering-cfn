@@ -221,7 +221,33 @@ def _mcp_post(body: dict, session_id: str = "") -> tuple[int, dict, str]:
         return resp.status, _parse_sse(raw), sid
 
 
+def _preflight_mcp_url() -> None:
+    """Fail fast with an actionable message when Actions secrets are wrong."""
+    import socket
+    from urllib.parse import urlparse
+
+    if not MCP_URL:
+        raise RuntimeError("AIDEN_CDK_GOV_MCP_URL is empty")
+    host = urlparse(MCP_URL).hostname or ""
+    if not host:
+        raise RuntimeError(f"AIDEN_CDK_GOV_MCP_URL has no host: {MCP_URL!r}")
+    if host.endswith(".cluster.local") or host.endswith(".svc"):
+        raise RuntimeError(
+            f"AIDEN_CDK_GOV_MCP_URL is cluster-local ({host}) — GitHub Actions cannot "
+            "resolve it. Set the public URL https://mcp-cdk-governance.stackgen.run/mcp "
+            "(scripts/demo-governance/sync_github_gate_secrets.py)."
+        )
+    try:
+        socket.getaddrinfo(host, 443)
+    except socket.gaierror as e:
+        raise RuntimeError(
+            f"DNS failed for MCP host {host!r} from Actions runner ({e}). "
+            "Re-sync repo secrets with scripts/demo-governance/sync_github_gate_secrets.py"
+        ) from e
+
+
 def call_validate_cdk() -> dict:
+    _preflight_mcp_url()
     init = {
         "jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": {
@@ -230,36 +256,48 @@ def call_validate_cdk() -> dict:
             "clientInfo": {"name": "aiden-pr-gate", "version": "1.0"},
         },
     }
-    _code, _resp, sid = _mcp_post(init)
-    if not sid:
-        raise RuntimeError("MCP initialize returned no mcp-session-id")
-    try:
-        _mcp_post({"jsonrpc": "2.0", "method": "notifications/initialized"}, sid)
-    except Exception:  # noqa: BLE001
-        pass
-    call = {
-        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-        "params": {
-            "name": "validate_cdk_governance",
-            "arguments": {"project": PROJECT, "ref": REF},
-        },
-    }
-    _code, resp, _sid = _mcp_post(call, sid)
-    if "error" in resp:
-        raise RuntimeError(f"MCP tool error: {resp['error']}")
-    result = resp.get("result", {})
-    content = result.get("content", [])
-    text = ""
-    for c in content:
-        if c.get("type") == "text":
-            text = c.get("text", "")
-            break
-    if not text:
-        sc = result.get("structuredContent")
-        if isinstance(sc, dict):
-            return sc
-        raise RuntimeError(f"MCP tool returned no text content: {json.dumps(result)[:500]}")
-    return json.loads(text)
+    last_err: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            _code, _resp, sid = _mcp_post(init)
+            if not sid:
+                raise RuntimeError("MCP initialize returned no mcp-session-id")
+            try:
+                _mcp_post({"jsonrpc": "2.0", "method": "notifications/initialized"}, sid)
+            except Exception:  # noqa: BLE001
+                pass
+            call = {
+                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                "params": {
+                    "name": "validate_cdk_governance",
+                    "arguments": {"project": PROJECT, "ref": REF},
+                },
+            }
+            _code, resp, _sid = _mcp_post(call, sid)
+            if "error" in resp:
+                raise RuntimeError(f"MCP tool error: {resp['error']}")
+            result = resp.get("result", {})
+            content = result.get("content", [])
+            text = ""
+            for c in content:
+                if c.get("type") == "text":
+                    text = c.get("text", "")
+                    break
+            if not text:
+                sc = result.get("structuredContent")
+                if isinstance(sc, dict):
+                    return sc
+                raise RuntimeError(
+                    f"MCP tool returned no text content: {json.dumps(result)[:500]}"
+                )
+            return json.loads(text)
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            summary(f"- MCP attempt {attempt}/3 failed: `{e}`")
+            if attempt < 3:
+                time.sleep(2 * attempt)
+    assert last_err is not None
+    raise last_err
 
 
 def _status_for_verdict(verdict: str) -> tuple[str, str]:
