@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "clown-demo — KMS CMK + governed S3 bucket (us-east-1)"
+
+Resources:
+
+  ClownDemoKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "CMK for clown-demo S3 bucket"
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "Enable IAM User Permissions"
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+      Tags:
+        - Key: team
+          Value: platform
+        - Key: project
+          Value: FE-DEMO
+        - Key: env
+          Value: dev
+
+  ClownDemoKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/clown-demo-key
+      TargetKeyId: !Ref ClownDemoKey
+
+  ClownDemoBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref ClownDemoKey
+            BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: team
+          Value: platform
+        - Key: project
+          Value: FE-DEMO
+        - Key: env
+          Value: dev
